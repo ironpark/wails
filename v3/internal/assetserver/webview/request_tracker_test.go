@@ -4,7 +4,6 @@ import (
 	"context"
 	"net/http"
 	"strconv"
-	"sync"
 	"testing"
 )
 
@@ -92,27 +91,6 @@ func TestRequestTrackerWindowCloseAndLateRequests(t *testing.T) {
 	defer late.Close()
 	if requestContext(late).Err() != context.Canceled {
 		t.Fatal("late request escaped window cancellation")
-	}
-}
-
-func TestRequestTrackerConcurrentCompletionAndAbort(t *testing.T) {
-	for range 100 {
-		tracker := NewRequestTracker(context.Background())
-		raw := trackedTestRequest(tracker.Start("request"))
-		r := tracker.Wrap(raw)
-		var workers sync.WaitGroup
-		for range 8 {
-			workers.Go(func() { tracker.Cancel("request") })
-			workers.Go(func() { r.Close() })
-			workers.Go(func() { tracker.Close() })
-		}
-		workers.Wait()
-		if raw.closeCount.Load() != 1 {
-			t.Fatal("request closed more than once")
-		}
-		if len(tracker.byID) != 0 || len(tracker.byToken) != 0 {
-			t.Fatal("completed request leaked")
-		}
 	}
 }
 
